@@ -6,7 +6,7 @@ Feel free to contact me if you would like discuss any content in this repository
 - twitter: @mooholl 
 
 The goal of this project is to provide all code used in the paper:</br>
-X
+Marshall, H., Lonsdale, Z.N., Ladas, V. & Mallon, E.B. (in prep). Methylation and Gene Expression Differences Between Castes of Bumblebee Workers. 
 
 
 ## Current Goals
