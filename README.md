@@ -38,9 +38,9 @@ If you would like to use any of the code found here please cite this pre-print f
 
 **Citation:** Marshall, H., Lonsdale, Z. N. & Mallon, E.B. (2019). Methylation and Gene Expression Differences Between Reproductive Castes of Bumblbee Workers. Pre-print. bioRxiv. DOI:https://doi.org/10.1101/517698.
 
-How to contribute to the code: [here](Worker_Methylation_Bumblebee/CONTRIBUTING.md).<br/>
-Project license: [here](Worker_Methylation_Bumblebee/LICENSE).<br/>
-Code of conduct: [here](Worker_Methylation_Bumblebee/CODE_OF_CONDUCT.md).
+How to contribute to the code: [here](https://github.com/MooHoll/Worker_Methylation_Bumblebee/blob/master/CONTRIBUTING.md).<br/>
+Project license: [here](https://github.com/MooHoll/Worker_Methylation_Bumblebee/blob/master/LICENSE).<br/>
+Code of conduct: [here](https://github.com/MooHoll/Worker_Methylation_Bumblebee/blob/master/CODE_OF_CONDUCT.md).
 
 If you have any questions/comments etc. feel free to contact me at:
 - email: hollie_marshall@hotmail.co.uk
