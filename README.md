@@ -4,6 +4,7 @@
 
 Phenotypic plasticity is the production of multiple phenotypes from a single genome and is notably observed in social insects. Multiple epigenetic mechanisms have been associated with social insect plasticity, with methylation being explored to the greatest extent. Methylation is known to play a role in caste determination in <i>Apis mellifera</i>, and other social insects, but there is limited knowledge on it's role in other bee species. In this study we analysed whole genome bisulfite sequencing and RNA-seq data sets from head tissue of reproductive and sterile castes of the eusocial bumblebee <i>Bombus terrestris</i>.
 
+**NOTE:** this was my first bioinformatic project (so please forgive the messy code), I plan on tidying all code up after PhD completion. 
 
 ## Project Team: 
 
