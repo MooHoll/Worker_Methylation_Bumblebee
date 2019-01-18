@@ -1,0 +1,302 @@
+---
+title: "Differential Methylation Between Reproductive and Sterie *Bombus terrestris* Workers."
+author: "Hollie Marshall"
+date: "9/28/2018"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, eval=FALSE)
+```
+
+## Differential Methylation Analysis
+
+This is the script for a differential methylation analysis between reproductive and sterile bumblebee workers. The data is whole genome bisulfite sequencing data, this has been alined to the reference genome Bter_1.0 and deduplicated using Bismark. The resulting bam files have also been sorted and indexed using samtools.
+
+
+```{r Admin}
+setwd("./")
+library(methylKit)
+library(grid)
+library(readr)
+library(ggplot2)
+```
+
+The following commands reads a sorted BAM file and creates a methylRaw object for CpG methylation. It also writes out .txt files for each input making future use easier as it takes much longer to read in a BAM compared to a TXT.
+```{r Make Convenient Input Files}
+file.list <- list("j1nr_deduplicated_sorted.bam","j1r_deduplicated_sorted.bam",
+                  "j5nr_deduplicated_sorted.bam","j5r_deduplicated_sorted.bam",
+                  "j8nr_deduplicated_sorted.bam","j8r_deduplicated_sorted.bam")
+
+raw_data <- processBismarkAln(file.list,
+                        sample.id = list("j1nr","j1r","j5nr","j5r","j8nr","j8r"),
+                         treatment = c(1,0,1,0,1,0),
+                         assembly="bter_1.0", 
+                         read.context="CpG",
+                         save.context = "CpG",
+                         save.folder=getwd(),
+                         save.db = TRUE)
+```
+
+
+After the above has been run you can use the below code each time to read in much smaller files based on the original .bams, this saves time and memory for future analyses.
+```{r Input Files}
+file.list <- list("j1nr_CpG.txt", "j1r_CpG.txt", "j5nr_CpG.txt", "j5r_CpG.txt",
+                  "j8nr_CpG.txt", "j8r_CpG.txt")
+
+raw_data <- methRead(file.list,
+              sample.id = list("j1nr","j1r","j5nr","j5r","j8nr","j8r"),
+              treatment = c(1,0,1,0,1,0),
+              assembly="bter_1.0", 
+              context="CpG")
+```
+
+
+Get some stats on the objects and write out as one .pdf file with multiple plots in it. (Need to play with this, the following commands give the plot for just the second dataset in the methylobject list).
+```{r Initial Look at Data}
+pdf("initial_look.pdf") 
+getMethylationStats(raw_data[[2]],plot=TRUE,both.strands=FALSE)
+dev.off()
+
+pdf("initial_look2.pdf") 
+getCoverageStats(raw_data[[2]],plot=TRUE,both.strands=FALSE)
+dev.off()
+```
+
+Filter data by coverage; must have at least 10 reads per CpG and not exceed the 99.9th percentile (PCR duplicates), also tested with only 4 reads and similar results in terms of the number of diff methylated CpGs.
+```{r Filtering for Coverage}
+filtered_data <- filterByCoverage(raw_data,lo.count=10,lo.perc=NULL,
+                                      hi.count=NULL,hi.perc=99.9)
+```
+
+Select only CpGs found in all 6 samples for analysis (destand =T can be used for CpG methylation to use both strands and incresae coverage, this should not be used for non-CpG though). You can decrease the minimum number of samples a particular CpG occurs in by using 'min.per.group =2L'.
+```{r Combine Data}
+meth_all_data <- unite(filtered_data, destrand=TRUE)
+```
+
+Filter the object above so we only take CpGs that have at least 25% methylation in at least one sample for analysis: this massively reduces the load for the multiple correction testing.
+```{r Filter for Percent Cs per Position}
+df_meth_all <- getData(meth_all_data)
+
+df_meth_all$percent_1 <-(df_meth_all$numCs1/df_meth_all$coverage1)*100
+df_meth_all$percent_2 <-(df_meth_all$numCs2/df_meth_all$coverage2)*100
+df_meth_all$percent_3 <-(df_meth_all$numCs3/df_meth_all$coverage3)*100
+df_meth_all$percent_4 <-(df_meth_all$numCs4/df_meth_all$coverage4)*100
+df_meth_all$percent_5 <-(df_meth_all$numCs5/df_meth_all$coverage5)*100
+df_meth_all$percent_6 <-(df_meth_all$numCs6/df_meth_all$coverage6)*100
+
+subset_meth <- subset(df_meth_all, percent_1 >= 25 | percent_2 >= 25 | percent_3 >= 25 |
+                        percent_4 >= 25 | percent_5 >= 25 | percent_6 >= 25 ) 
+
+row_numbers <- as.vector(row.names(subset_meth))
+row_numbers <- as.numeric(row_numbers) 
+subset_methBase <- select (meth_all_data, row_numbers)
+```
+
+This is the ouptut when testing/deciding on which percentage of C's per position is a good cut off. Too low a percentage and you risk including sequencing errors (i.e if 2/30 reads are Cs then the % if >5 but probably that position isn't methylated), too high a percentage means we possibly lose real sites (i.e. if 10/20 reads are Cs this would give 50% and it could just be that one alleles has methylation and the other doesn't).
+```{r Choosing Percent of Cs}
+setwd("~/Dropbox/PhD Folder/Virtual Lab Book/MERN_Analysis/Methylation/
+      NEW_diff_meth_methylkit/cpg/diff_meth_test")
+
+filtering_tests <- read_csv("filtering_tests.csv")
+filtering_tests$min_percent_Cs <- factor(filtering_tests$min_percent_Cs, 
+                                         levels =filtering_tests$min_percent_Cs)
+
+pdf("Positions_for_testing.pdf") 
+ggplot(filtering_tests, aes(x=min_percent_Cs, y=positions_remaining))+
+  geom_bar(stat="identity")
+dev.off()
+
+pdf("Number_diff_methlated_sites.pdf") 
+ggplot(filtering_tests, aes(x=min_percent_Cs, y=DM_CpGs))+
+  geom_bar(stat="identity")
+dev.off()
+```
+
+Instead of above: could also use this protocol: http://www.stat.purdue.edu/~cheng70/code.html to select which sites are methylated and then filter the final dataframe on these rather than an arbituary cut-off, i.e. at least one sample should contain methylation per position in order for it to be considered. This protocol uses a binomial model to decide if a site is methylated.
+```{r MSC Methylation Call Filtering}
+df_meth_all <- getData(meth_all_data)
+df_meth_all$rownums <- row.names(df_meth_all)
+
+source("/scratch/monoallelic/hm257/repro_methylation/bams/meth_calling_R_code/MSC.R")
+source("/scratch/monoallelic/hm257/repro_methylation/bams/meth_calling_R_code/
+       rateestimate.R")
+
+samp1 <- df_meth_all[,5:6]
+colnames(samp1) <- c("CT","Ccount")
+MSCount_samp1 <- MSC(samp1, 1e-08)
+MSCresult1 <- MSCount_samp1$MSC
+write.csv(MSCresult1, file="MSC_meth_calls_J1NR.csv")
+pi1 <- MSCount_samp1$pi
+MSCrate1 <- rateestimate(MSCresult1,pi1)
+rate1 <- as.data.frame(MSCrate1)
+write.csv(rate1, file="MSC_rate_estimates_J1NR.csv")
+MSCresult1$row_nums <- row.names(MSCresult1)
+MSCresult1_meth <- subset(MSCresult1, status == "methylated")
+
+samp2 <- df_meth_all[,8:9]
+colnames(samp2) <- c("CT","Ccount")
+MSCount_samp2 <- MSC(samp2, 1e-08)
+MSCresult2 <- MSCount_samp2$MSC
+write.csv(MSCresult2, file="MSC_meth_calls_J1R.csv")
+pi2 <- MSCount_samp2$pi
+MSCrate2 <- rateestimate(MSCresult2,pi2)
+rate2 <- as.data.frame(MSCrate2)
+write.csv(rate2, file="MSC_rate_estimates_J1R.csv")
+MSCresult2$row_nums <- row.names(MSCresult2)
+MSCresult2_meth <- subset(MSCresult2, status == "methylated")
+
+samp3 <- df_meth_all[,11:12]
+colnames(samp3) <- c("CT","Ccount")
+MSCount_samp3 <- MSC(samp3, 1e-08)
+MSCresult3 <- MSCount_samp3$MSC
+write.csv(MSCresult3, file="MSC_meth_calls_J5NR.csv")
+pi3 <- MSCount_samp3$pi
+MSCrate3 <- rateestimate(MSCresult3,pi3)
+rate3 <- as.data.frame(MSCrate3)
+write.csv(rate3, file="MSC_rate_estimates_J5NR.csv")
+MSCresult3$row_nums <- row.names(MSCresult3)
+MSCresult3_meth <- subset(MSCresult3, status == "methylated")
+
+samp4 <- df_meth_all[,14:15]
+colnames(samp4) <- c("CT","Ccount")
+MSCount_samp4 <- MSC(samp4, 1e-08)
+MSCresult4 <- MSCount_samp4$MSC
+write.csv(MSCresult4, file="MSC_meth_calls_J5R.csv")
+pi4 <- MSCount_samp4$pi
+MSCrate4 <- rateestimate(MSCresult4,pi4)
+rate4 <- as.data.frame(MSCrate4)
+write.csv(rate4, file="MSC_rate_estimates_J5R.csv")
+MSCresult4$row_nums <- row.names(MSCresult4)
+MSCresult4_meth <- subset(MSCresult4, status == "methylated")
+
+samp5 <- df_meth_all[,17:18]
+colnames(samp5) <- c("CT","Ccount")
+MSCount_samp5 <- MSC(samp5, 1e-08)
+MSCresult5 <- MSCount_samp5$MSC
+write.csv(MSCresult5, file="MSC_meth_calls_J8NR.csv")
+pi5 <- MSCount_samp5$pi
+MSCrate5 <- rateestimate(MSCresult5,pi5)
+rate5 <- as.data.frame(MSCrate5)
+write.csv(rate5, file="MSC_rate_estimates_J8NR.csv")
+MSCresult5$row_nums <- row.names(MSCresult5)
+MSCresult5_meth <- subset(MSCresult5, status == "methylated")
+
+samp6 <- df_meth_all[,20:21]
+colnames(samp6) <- c("CT","Ccount")
+MSCount_samp6 <- MSC(samp6, 1e-08)
+MSCresult6 <- MSCount_samp6$MSC
+write.csv(MSCresult6, file="MSC_meth_calls_J8R.csv")
+pi6 <- MSCount_samp6$pi
+MSCrate6 <- rateestimate(MSCresult6,pi6)
+rate6 <- as.data.frame(MSCrate6)
+write.csv(rate6, file="MSC_rate_estimates_J8R.csv")
+MSCresult6$row_nums <- row.names(MSCresult6)
+MSCresult6_meth <- subset(MSCresult6, status == "methylated")
+
+# J1NR: 10675 meth sites 
+# J1R: 10569
+# J5NR: 9812
+# J5R: 10556
+# J8NR: 9798
+# J8R: 9658
+
+all_data <- rbind(MSCresult1_meth, MSCresult2_meth, MSCresult3_meth, MSCresult4_meth,
+                  MSCresult5_meth, MSCresult6_meth)
+
+meth_positions <- as.vector(as.numeric(unique(all_data$row_nums))) #16194 left
+
+subset_methBase <- select (meth_all_data, meth_positions) 
+# after diff meth below gives 635 genes, of which 559 overlap with the 565 from 
+# the 25% filtering threshold above
+```
+
+
+Check sample correlations.
+```{r Correlations}
+pdf("correlation.pdf")
+getCorrelation(subset_methBase,plot=TRUE)
+dev.off()
+```
+
+Look at a hierarchical cluster of the samples, to make a nicer image use the output in the second line of code to feed into a dendogram program.
+```{r Clustering}
+pdf("sample_cluster.pdf")
+clusterSamples(subset_methBase, dist="correlation", method="ward", plot=TRUE)
+dev.off()
+
+hc <- clusterSamples(subset_methBase, dist="correlation", method="ward", plot=FALSE)
+```
+
+Do a PCA, the screeplot tells you which PCs store the most varience.
+```{r PCA and Scree Plots}
+pdf("screeplot.pdf")
+PCASamples(subset_methBase, screeplot=TRUE)
+dev.off()
+
+pdf("pca_plot.pdf")
+PCASamples(subset_methBase)
+dev.off()
+```
+
+Find differentially methylated regions with a min percentage diff of 10 and q-val of 0.05. It uses a logistic regression and the SLIM method for correction for multiple testing. Can change the number of cores if using on a HPC. This takes into account colony of a covariate.
+```{r Differential Methylation Anslysis}
+covariates <- data.frame(colony=c("J1","J1","J5","J5","J8","J8"))
+
+diff_meth <- calculateDiffMeth(subset_methBase, covariates=covariates, mc.cores = 3)
+write.csv(diff_meth, file="All_tested_meth_sites_MSCfilter.csv")
+
+diff_meth_10 <- getMethylDiff(diff_meth, difference=10, qvalue=0.05)
+write.csv(diff_meth_10, file="DMRs_min10percentDiff_qval0.05_MSCfilter.csv")
+```
+
+
+
+
+## Adding Gene Names to DMRs
+
+```{r Admin2}
+#install.packages("sqldf", repos= "https://www.stats.bris.ac.uk/R/")
+library(sqldf)
+library(readr)
+```
+
+
+This file contains all the annotation for the Bter_1.0 genome. I have also added in intro information and numbered the exons and introns given their position within a gene (taking into accout strand).
+```{r Read in Data}
+genome_annotation<-read.csv.sql("FINAL_BIG_annotation_file_with_introns.csv",
+                           sql ="select * from file", sep=",",header = T)
+genome_annotation<-genome_annotation[,-c(1,5,8,9,10,11,12)]
+genome_annotation<-subset(genome_annotation, feature=="gene")
+
+diff_meth_sites <- diff_meth_10
+colnames(diff_meth_sites)[8]<-"meth_diff"
+```
+
+Merge the files using SQL to get a final output with the gene information for each DMR.
+```{r}
+output <- sqldf("SELECT diff_meth_sites.chr,
+      diff_meth_sites.start,
+      diff_meth_sites.end,
+      diff_meth_sites.strand,
+      diff_meth_sites.pvalue,
+      diff_meth_sites.qvalue,
+      diff_meth_sites.meth_diff,
+      ga.chr,
+      ga.start,
+      ga.end,
+      ga.geneID
+      FROM diff_meth_sites AS diff_meth_sites
+      LEFT JOIN genome_annotation AS ga 
+      ON diff_meth_sites.chr = ga.chr
+      AND (diff_meth_sites.start >= ga.start AND diff_meth_sites.start <= ga.end)") 
+
+output_dedup <- unique(output)
+output_subset_no_geneIDs <-subset(output, !output$geneID=="NA")
+
+write.table(output_subset_no_geneIDs, file="Diff_Meth_Genes_MSCfilter_with_geneID.csv",
+            sep="\t", row.names=F, quote=F)
+
+write.csv(output_subset_no_geneIDs$geneID, file="list_DMGs_MSCfilter.csv")
+```
+
