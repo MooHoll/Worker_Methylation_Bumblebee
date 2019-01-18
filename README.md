@@ -34,7 +34,7 @@ This project is part of the work from the Social Epigenetics group at the Unvier
 ## Additional Info
 
 If you would like to use any of the code found here please cite this pre-print following the below DOI:
-[![DOI](https://doi.org/10.1101/517698)](https://doi.org/10.1101/517698)
+[(https://doi.org/10.1101/517698)](https://doi.org/10.1101/517698).
 
 **Citation:** Marshall, H., Lonsdale, Z. N. & Mallon, E.B. (2019). Methylation and Gene Expression Differences Between Reproductive Castes of Bumblbee Workers. Pre-print. bioRxiv. DOI:https://doi.org/10.1101/517698.
 
